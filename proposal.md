@@ -7,6 +7,7 @@ Nick Steelman
 **What is the main idea of the project?
 What topics will you explore and what will you generate?**
 ![Lassie Help!](lassiehelp.jpg)
+
 I want to explore a mix between path planning and machine learning for this project. I plan on building upon my previous person following work, but switch it around so that the person follows the Neato. The main idea is to enable the Neato to see a person at a start location, explore the area for another person, then lead that person back to the start location.   
 
 **What frameworks / algorithms are you planning to explore (do your best to answer this even if things are still fuzzy)? **
