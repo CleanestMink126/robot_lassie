@@ -10,7 +10,7 @@ What topics will you explore and what will you generate?**
 
 I want to explore a mix between path planning and machine learning for this project. I plan on building upon my previous person following work, but switch it around so that the person follows the Neato. The main idea is to enable the Neato to see a person at a start location, explore the area for another person, then lead that person back to the start location.   
 
-**What frameworks / algorithms are you planning to explore (do your best to answer this even if things are still fuzzy)? **
+**What frameworks / algorithms are you planning to explore (do your best to answer this even if things are still fuzzy)?**
 
 I currently know relatively little about path planning so most of my focus will be around that. As far as specifics go I am pretty fuzzy.
 There will likely be auxiliary challenges such as object avoidance and realistic exploration as well that I will have to explore.
