@@ -24,11 +24,11 @@ AREA = IMAGE_SIZE[0] * IMAGE_SIZE[1]
 
 class TrackPerson:
     def __init__(self):
-        rospy.init_node('person_tracker')
+        # rospy.init_node('person_tracker')
         print('init')
         self.turn_velocity = 0 #start turn velocity
         self.forward_velocity = 0 #start forward velocity
-        self.threshold_person = 0.5 #How sure the pre-trained model is that there's a person in screen
+        self.threshold_person = 0.8 #How sure the pre-trained model is that there's a person in screen
         self.threshold_direction = 10 #in pixels, how far the person's bounding box is to decide to turn
         self.bridge = CvBridge() #used to get images
         self.get_image = False #whether to graab newest image
@@ -75,12 +75,13 @@ class TrackPerson:
             self.turn_velocity = 0
             self.forward_velocity = MAX_MOVE
 
-    def decide_stop(box):
+    def decide_stop(self,box):
         x = box[3] - box[1]
         y = box[2] - box[0]
         if abs(x * y) > (AREA//2):
             self.forward_velocity = 0
-
+            return True
+        return False
 if __name__ == "__main__":
     node = TrackPerson()
     node.run()
