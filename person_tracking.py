@@ -44,6 +44,9 @@ class TrackPerson:
             self.image = self.bridge.imgmsg_to_cv2(m, desired_encoding="bgr8")
             self.get_image = False
 
+    def reset(self):
+        self.image = None
+
     def get_box(self):
         '''Return a bounding box if there's a person in the image '''
         boxes, scores, classes, num = self.model.processFrame(self.image) #check for people

@@ -1,9 +1,10 @@
 import numpy as np
-import interface
 from math import sin, cos, atan2, pi, fabs
 import rospy
-import person_tracking
 import cv2
+import interface
+import person_tracking
+import mapLogic
 print('Imported')
 
 def distance(x,y):
@@ -43,14 +44,34 @@ class TrackPath(object):
         self.points = [] #list of tuples representing positions
         self.my_lidar = interface.BaseLidar()
         self.my_speed = interface.SendSpeed()
-        self.my_marker = interface.SendLineMarker()
+        self.my_marker = interface.SendMarker()
         self.my_bump = interface.ReceiveBump()
         self.person_tracker = person_tracking.TrackPerson()
         x = None
         while x is None:
             x, y, yaw = self.my_lidar.my_odom.get_odom()
-        self.thres = .1 #how close can a point be before the neato ignores it
+        self.map = mapLogic.Map((x,y,yaw))
+        self.thres = .25 #how close can a point be before the neato ignores it
         self.speed = .3 #how fast to move
+
+    def update_map(self):
+        self.my_lidar.get_lidar = True
+        while self.my_lidar.get_lidar:
+            rospy.sleep(.05)
+        self.map.update_graph(self.my_lidar.last_odom, self.my_lidar.last_ranges)
+        self.my_lidar.reset()
+
+    def show_map(self):
+        r = rospy.Rate(2)
+        while not rospy.is_shutdown():
+            self.map.update_map()
+            cv2.imshow("image",self.map) #show box
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'): #stop neato and quit if 'q'
+                self.my_speed.send_speed(0,0)
+                break
+            r.sleep()
+
 
     def add_position(self):
         '''Add a point to the list of points to follow'''
@@ -118,7 +139,7 @@ class TrackPath(object):
             if self.person_tracker.image is not None: #if we have gotten an image
                 box = self.person_tracker.get_box()
                 if box is None:#if we did not find a suitable box, try again later
-                    self.person_tracker.image = None
+                    self.person_tracker.reset()
                     self.person_tracker.get_image = True
                     continue
                 # cv2.imshow("image",img) #show box
@@ -129,7 +150,7 @@ class TrackPath(object):
                 self.person_tracker.set_speed(box) # determine proportional speed
                 if self.person_tracker.decide_stop(box):
                     break #determine whether or not to stop
-                self.person_tracker.image = None #make sure to wait for a new image
+                self.person_tracker.reset() #make sure to wait for a new image
             self.person_tracker.get_image = True
             r.sleep()
         print('Finished go to person')
@@ -145,7 +166,7 @@ class TrackPath(object):
                 if key & 0xFF == ord('q'): #stop neato and quit if 'q'
                     self.my_speed.send_speed(0,0)
                     break
-                self.person_tracker.image = None #make sure to wait for a new image
+                self.person_tracker.reset() #make sure to wait for a new image
                 self.person_tracker.get_image = True
                 if box is not None:#if we did not find a suitable box, try again later
                     break
@@ -153,10 +174,10 @@ class TrackPath(object):
             r.sleep()
         print('Found person')
 
-
 if __name__ == "__main__":
     print('Start')
     tracker = TrackPath()
-    tracker.explore()
-    tracker.go_to_person()
-    tracker.retrace_path()
+    tracker.show_map()
+    # tracker.explore()
+    # tracker.go_to_person()
+    # tracker.retrace_path()

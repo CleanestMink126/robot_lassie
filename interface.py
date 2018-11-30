@@ -63,7 +63,7 @@ class SendSpeed(object):
 
 
 
-class SendLineMarker(object):
+class SendMarker(object):
     '''
     Class container that handles sending the markers to a running neato node.
     It should be imported and used as needed by other scripts.
@@ -97,24 +97,23 @@ class BaseLidar(object):
         rospy.init_node('interface')
         rospy.Subscriber("/stable_scan", LaserScan, self.process_range)
         self.my_odom = ReceiveOdom()
-        self.list_ranges = []
-        self.list_odom = []
+        self.get_lidar = False
+        self.last_ranges = None
+        self.last_odom = None
         print('BaseLidar')
 
     def process_range(self, m):
-        self.list_odom.append(self.my_odom.get_odom())
-        self.list_ranges.append(m.ranges)
-
+        if self.get_lidar:
+            self.last_odom = self.my_odom.get_odom()
+            self.last_ranges = m.ranges
+            self.get_lidar = False
 
     def process_odom(self, m):
         self.odom = m
 
-    def get_list_ranges(self):
-        list_ranges = self.list_ranges
-        self.list_ranges = []
-        list_odom = self.list_odom
-        self.list_odom = []
-        return list_ranges, list_odom #all missed ranges
+    def reset(self):
+        self.last_ranges = None
+        self.last_odom = None
 
     def run(self):
         rospy.spin()
