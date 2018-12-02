@@ -45,27 +45,28 @@ class TrackPath(object):
         self.my_lidar = interface.BaseLidar()
         self.my_speed = interface.SendSpeed()
         self.my_marker = interface.SendMarker()
-        self.my_bump = interface.ReceiveBump()
         self.person_tracker = person_tracking.TrackPerson()
         x = None
         while x is None:
-            x, y, yaw = self.my_lidar.my_odom.get_odom()
+            x, y, yaw = self.my_lidar.get_odom()
+        print('Setup')
         self.map = mapLogic.Map((x,y,yaw))
+        print('Made map')
         self.thres = .25 #how close can a point be before the neato ignores it
         self.speed = .3 #how fast to move
 
     def update_map(self):
         self.my_lidar.get_lidar = True
         while self.my_lidar.get_lidar:
-            rospy.sleep(.05)
+            rospy.sleep(.1)
         self.map.update_graph(self.my_lidar.last_odom, self.my_lidar.last_ranges)
         self.my_lidar.reset()
 
     def show_map(self):
         r = rospy.Rate(2)
         while not rospy.is_shutdown():
-            self.map.update_map()
-            cv2.imshow("image",self.map) #show box
+            self.update_map()
+            cv2.imshow("image",self.map.graph) #show box
             key = cv2.waitKey(1)
             if key & 0xFF == ord('q'): #stop neato and quit if 'q'
                 self.my_speed.send_speed(0,0)
@@ -75,14 +76,14 @@ class TrackPath(object):
 
     def add_position(self):
         '''Add a point to the list of points to follow'''
-        x, y, yaw = self.my_lidar.my_odom.get_odom()
+        x, y, yaw = self.my_lidar.get_odom()
         self.points.append((x,y))
 
     def navigate_to_point(self):
         '''If we reached a point, turn to the next point in the list and
         drive there'''
         self.my_speed.send_speed(0,0)
-        x, y, yaw = self.my_lidar.my_odom.get_odom()
+        x, y, yaw = self.my_lidar.get_odom()
         while distance(self.points[0],(x,y)) < self.thres:
             self.points.pop(0)#ignore redundant points that are close to neato
             if not len(self.points):
@@ -91,7 +92,7 @@ class TrackPath(object):
         angle_threshold = pi / 38 #how close we need to be in our heading to next point
         c_angle_diff = angle_threshold + 1 #just so the while loop will run
         while abs(c_angle_diff) > angle_threshold:
-            x, y, yaw = self.my_lidar.my_odom.get_odom()
+            x, y, yaw = self.my_lidar.get_odom()
             x_t, y_t = self.points[0][0], self.points[0][1]
             t_yaw = atan2(y_t - y, x_t - x) #calculate ideal angle
             c_angle_diff = angle_diff(t_yaw, yaw) #find difference from current angle
@@ -102,7 +103,7 @@ class TrackPath(object):
     def check_progress(self):
         '''Loop to check if we have either passed our point or are close to it'''
         if len(self.points):
-            x, y, yaw = self.my_lidar.my_odom.get_odom()
+            x, y, yaw = self.my_lidar.get_odom()
             x_t, y_t = self.points[0][0], self.points[0][1]
             t_yaw = atan2(y_t - y, x_t - x)
             c_angle_diff = angle_diff(t_yaw, yaw)
