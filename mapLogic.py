@@ -48,11 +48,14 @@ class Map(object):
         self.graph[green_points[:,0],green_points[:,1],:] = [255,255,255]
         self.graph[red_points[:,0],red_points[:,1],:] = [0,0,204]
         self.graph[self.positions[:,0],self.positions[:,1],:] = [204,0,0]
+        self.set_goal()
+
+    def set_goal(self):
         distance_graph = graphTraversal.find_valid_points(self.graph, 5)
         index_flat = np.argmax(distance_graph)
         x_goal = index_flat // self.size
         y_goal = index_flat % self.size
-        self.goal[x_goal-2:x_goal+2, y_goal-2:y_goal+2,:] = [0,204,0]
+        self.graph[x_goal-2:x_goal+2, y_goal-2:y_goal+2,:] = [0,204,0]
         # print(np.max(self.graph))
         # print(self.graph.dtype)
         # print(self.graph)
