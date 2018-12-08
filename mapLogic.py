@@ -1,6 +1,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import graphTraversal
 
 rad2degrees = 180/3.14159
 degrees2rad = 3.14159/180
@@ -44,9 +45,17 @@ class Map(object):
             return
         red_points = red_points.astype(np.int32)
         green_points = green_points.astype(np.int32)
-        self.graph[green_points[:,0],green_points[:,1],:] = [0,255,0]
-        self.graph[red_points[:,0],red_points[:,1],:] = [0,0,255]
-        self.graph[self.positions[:,0],self.positions[:,1],:] = [255,0,0]
+        self.graph[green_points[:,0],green_points[:,1],:] = [255,255,255]
+        self.graph[red_points[:,0],red_points[:,1],:] = [0,0,204]
+        self.graph[self.positions[:,0],self.positions[:,1],:] = [204,0,0]
+        self.set_goal()
+
+    def set_goal(self):
+        distance_graph = graphTraversal.find_valid_points(self.graph, 5)
+        index_flat = np.argmax(distance_graph)
+        x_goal = index_flat // self.size
+        y_goal = index_flat % self.size
+        self.graph[x_goal-2:x_goal+2, y_goal-2:y_goal+2,:] = [0,204,0]
         # print(np.max(self.graph))
         # print(self.graph.dtype)
         # print(self.graph)
