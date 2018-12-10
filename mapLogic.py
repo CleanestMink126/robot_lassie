@@ -45,20 +45,21 @@ class Map(object):
             return
         red_points = red_points.astype(np.int32)
         green_points = green_points.astype(np.int32)
-        self.graph[green_points[:,0],green_points[:,1],:] = [255,255,255]
+        self.graph[green_points[:,0],green_points[:,1],:] = [0,204,0]
         self.graph[red_points[:,0],red_points[:,1],:] = [0,0,204]
         self.graph[self.positions[:,0],self.positions[:,1],:] = [204,0,0]
-        self.set_goal()
 
     def set_goal(self):
         distance_graph = graphTraversal.find_valid_points(self.graph, 5)
         index_flat = np.argmax(distance_graph)
+        print(index_flat)
         x_goal = index_flat // self.size
         y_goal = index_flat % self.size
-        self.graph[x_goal-2:x_goal+2, y_goal-2:y_goal+2,:] = [0,204,0]
-        # print(np.max(self.graph))
-        # print(self.graph.dtype)
-        # print(self.graph)
+        x_adjusted = (x_goal * self.res) + self.offset[0]
+        y_asjusted = (y_goal * self.res) + self.offset[1]
+        return x_adjusted, y_adjusted
+
+
 
     def find_valid_pixels(self,origin,x_val, y_val):
         x_val = [np.linspace(origin[0], val,5,False) for val in x_val]

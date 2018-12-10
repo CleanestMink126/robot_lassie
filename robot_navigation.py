@@ -41,7 +41,8 @@ class TrackPath(object):
     the neato, then tracking their position and following their path
     '''
     def __init__(self):
-        self.points = [] #list of tuples representing positions
+        self.points = []
+        self.past_points = [] #list of tuples representing positions
         self.my_lidar = interface.BaseLidar()
         self.my_speed = interface.SendSpeed()
         self.my_marker = interface.SendMarker()
@@ -58,28 +59,28 @@ class TrackPath(object):
     def update_map(self):
         self.my_lidar.get_lidar = True
         while self.my_lidar.get_lidar:
-            rospy.sleep(.1)
+            rospy.sleep(.05)
         self.map.update_graph(self.my_lidar.last_odom, self.my_lidar.last_ranges)
         self.my_lidar.reset()
-
-    def show_map(self):
-        r = rospy.Rate(2)
-        while not rospy.is_shutdown():
-            self.update_map()
-            cv2.imshow("image",self.map.graph) #show box
-            key = cv2.waitKey(1)
-            if key & 0xFF == ord('q'): #stop neato and quit if 'q'
-                self.my_speed.send_speed(0,0)
-                break
-            r.sleep()
-
 
     def add_position(self):
         '''Add a point to the list of points to follow'''
         x, y, yaw = self.my_lidar.get_odom()
-        self.points.append((x,y))
+        self.past_points.append((x,y))
 
-    def navigate_to_point(self):
+    def navigate_to_point(self,point):
+        angle_threshold = pi / 38 #how close we need to be in our heading to next point
+        c_angle_diff = angle_threshold + 1 #just so the while loop will run
+        while abs(c_angle_diff) > angle_threshold:
+            x, y, yaw = self.my_lidar.get_odom()
+            x_t, y_t = point[0], point[1]
+            t_yaw = atan2(y_t - y, x_t - x) #calculate ideal angle
+            c_angle_diff = angle_diff(t_yaw, yaw) #find difference from current angle
+            #effectively turn but don't stop (with some hard coded numbers we found)
+            self.my_speed.send_speed(.1-abs(c_angle_diff/(10*pi)), np.sign(c_angle_diff) * .5 +  c_angle_diff/2)
+        self.my_speed.send_speed(self.speed,0)#go forward
+
+    def find_next_point(self):
         '''If we reached a point, turn to the next point in the list and
         drive there'''
         self.my_speed.send_speed(0,0)
@@ -89,37 +90,26 @@ class TrackPath(object):
             if not len(self.points):
                 self.my_speed.send_speed(0,0)
                 return
-        angle_threshold = pi / 38 #how close we need to be in our heading to next point
-        c_angle_diff = angle_threshold + 1 #just so the while loop will run
-        while abs(c_angle_diff) > angle_threshold:
-            x, y, yaw = self.my_lidar.get_odom()
-            x_t, y_t = self.points[0][0], self.points[0][1]
-            t_yaw = atan2(y_t - y, x_t - x) #calculate ideal angle
-            c_angle_diff = angle_diff(t_yaw, yaw) #find difference from current angle
-            #effectively turn but don't stop (with some hard coded numbers we found)
-            self.my_speed.send_speed(.1-abs(c_angle_diff/(10*pi)), np.sign(c_angle_diff) * .5 +  c_angle_diff/2)
-        self.my_speed.send_speed(self.speed,0)#go forward
+        self.navigate_to_point(self, self.points.pop(0))
 
-    def check_progress(self):
+
+    def check_progress(self, point):
         '''Loop to check if we have either passed our point or are close to it'''
-        if len(self.points):
-            x, y, yaw = self.my_lidar.get_odom()
-            x_t, y_t = self.points[0][0], self.points[0][1]
-            t_yaw = atan2(y_t - y, x_t - x)
-            c_angle_diff = angle_diff(t_yaw, yaw)
-            if distance(self.points[0],(x,y)) < self.thres or abs(c_angle_diff)>pi/2:
-                #We passed the point
-                return True
-        elif not len(self.points):#stop if we run out of points
-            self.my_speed.send_speed(0,0)
+        x, y, yaw = self.my_lidar.get_odom()
+        x_t, y_t = point[0], point[1]
+        t_yaw = atan2(y_t - y, x_t - x)
+        c_angle_diff = angle_diff(t_yaw, yaw)
+        if distance(point,(x,y)) < self.thres or abs(c_angle_diff)>pi/2:
+            #We passed the point
+            return True
         return False
 
     def retrace_path(self):
         '''Mainloop to control robot'''
         r= rospy.Rate(5)
-        self.points = self.points[::-1]
-        print(self.points)
-        self.navigate_to_point()
+        self.points = self.past_points[::-1]
+        # print(self.points)
+        self.find_next_point()
         while not rospy.is_shutdown():#add the persons position for a set amount of time
             if not len(self.points):
                 self.my_speed.send_speed(0,0)
@@ -127,7 +117,7 @@ class TrackPath(object):
             # self.my_marker.update_marker(self.points, frame_id = 'odom')
             if self.check_progress() and len(self.points):
                 #loop to navigate to points
-                self.navigate_to_point()
+                self.find_next_point()
             r.sleep()
         print('Back to start')
 
@@ -143,11 +133,6 @@ class TrackPath(object):
                     self.person_tracker.reset()
                     self.person_tracker.get_image = True
                     continue
-                # cv2.imshow("image",img) #show box
-                # key = cv2.waitKey(1)
-                # if key & 0xFF == ord('q'): #stop neato and quit if 'q'
-                #     self.my_speed.send_speed(0,0)
-                #     break
                 self.person_tracker.set_speed(box) # determine proportional speed
                 if self.person_tracker.decide_stop(box):
                     break #determine whether or not to stop
@@ -156,22 +141,36 @@ class TrackPath(object):
             r.sleep()
         print('Finished go to person')
 
+    def explore_static(num_maps, speed):
+        self.my_speed.send_speed(0, speed)#start off by sending the current speed
+        for i in range(num_maps):
+            self.update_map()
+        self.goal = self.set_goal()
+        self.navigate_to_point(self.goal)
+
     def explore(self):
         r = rospy.Rate(3)#How fast to run the loop
-        self.my_speed.send_speed(0, .1)#start off by sending the current speed
+        self.explore_static()
         while not rospy.is_shutdown():
             if self.person_tracker.image is not None: #if we have gotten an image
+                #------------------Person Tracking
                 box = self.person_tracker.get_box()
-                cv2.imshow("image",self.person_tracker.image) #show box
-                key = cv2.waitKey(1)
-                if key & 0xFF == ord('q'): #stop neato and quit if 'q'
-                    self.my_speed.send_speed(0,0)
-                    break
                 self.person_tracker.reset() #make sure to wait for a new image
                 self.person_tracker.get_image = True
                 if box is not None:#if we did not find a suitable box, try again later
                     break
-            self.person_tracker.get_image = True
+            else:
+                self.person_tracker.get_image = True
+            #-------------------
+            self.add_position()
+            self.update_map()
+            cv2.imshow("image",self.map.graph) #show box
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'): #stop neato and quit if 'q'
+                self.my_speed.send_speed(0,0)
+                break
+            if self.check_progress(self.goal):
+                self.explored_static()
             r.sleep()
         print('Found person')
 
