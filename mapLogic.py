@@ -55,15 +55,13 @@ class Map(object):
         print(index_flat)
         x_goal = index_flat // self.size
         y_goal = index_flat % self.size
-        x_adjusted = (x_goal * self.res) + self.offset[0]
-        y_asjusted = (y_goal * self.res) + self.offset[1]
+        x_adjusted = ((x_goal - self.center[0])  * self.res) + self.offset[0]
+        y_adjusted = ((y_goal - self.center[1])  * self.res) + self.offset[1]
         return x_adjusted, y_adjusted
 
-
-
     def find_valid_pixels(self,origin,x_val, y_val):
-        x_val = [np.linspace(origin[0], val,5,False) for val in x_val]
-        y_val = [np.linspace(origin[1], val,5,False) for val in y_val]
+        x_val = [np.linspace(origin[0], val,8,False) for val in x_val]
+        y_val = [np.linspace(origin[1], val,8,False) for val in y_val]
         x_val = np.reshape(x_val,[-1])
         y_val = np.reshape(y_val,[-1])
         x_index = x_val/self.res# + self.center[0]

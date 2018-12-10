@@ -53,7 +53,7 @@ class TrackPath(object):
         print('Setup')
         self.map = mapLogic.Map((x,y,yaw))
         print('Made map')
-        self.thres = .25 #how close can a point be before the neato ignores it
+        self.thres = .15 #how close can a point be before the neato ignores it
         self.speed = .3 #how fast to move
 
     def update_map(self):
@@ -141,43 +141,50 @@ class TrackPath(object):
             r.sleep()
         print('Finished go to person')
 
-    def explore_static(num_maps, speed):
+    def explore_static(self,num_maps=10, speed= .5):
         self.my_speed.send_speed(0, speed)#start off by sending the current speed
         for i in range(num_maps):
             self.update_map()
-        self.goal = self.set_goal()
+        self.goal = self.map.set_goal()
         self.navigate_to_point(self.goal)
 
     def explore(self):
         r = rospy.Rate(3)#How fast to run the loop
         self.explore_static()
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        out = cv2.VideoWriter('output.avi',fourcc, 10.0, (self.map.size,self.map.size))
         while not rospy.is_shutdown():
-            if self.person_tracker.image is not None: #if we have gotten an image
-                #------------------Person Tracking
-                box = self.person_tracker.get_box()
-                self.person_tracker.reset() #make sure to wait for a new image
-                self.person_tracker.get_image = True
-                if box is not None:#if we did not find a suitable box, try again later
-                    break
-            else:
-                self.person_tracker.get_image = True
+            # if self.person_tracker.image is not None: #if we have gotten an image
+            #     #------------------Person Tracking
+            #     box = self.person_tracker.get_box()
+            #     self.person_tracker.reset() #make sure to wait for a new image
+            #     self.person_tracker.get_image = True
+            #     if box is not None:#if we did not find a suitable box, try again later
+            #         break
+            # else:
+            #     self.person_tracker.get_image = True
             #-------------------
             self.add_position()
             self.update_map()
-            cv2.imshow("image",self.map.graph) #show box
+            x_goal = int((self.goal[0] - self.map.offset[0]) // self.map.res) + self.map.center[0]
+            y_goal = int((self.goal[1] - self.map.offset[1]) // self.map.res) + self.map.center[1]
+            new_graph = np.copy(self.map.graph)
+            new_graph[x_goal-1:x_goal+1,y_goal-1:y_goal+1,:] = [255,255,255]
+            cv2.imshow("image",new_graph) #show box
+            out.write(new_graph)
             key = cv2.waitKey(1)
             if key & 0xFF == ord('q'): #stop neato and quit if 'q'
                 self.my_speed.send_speed(0,0)
                 break
             if self.check_progress(self.goal):
-                self.explored_static()
+                self.explore_static()
             r.sleep()
         print('Found person')
 
 if __name__ == "__main__":
     print('Start')
     tracker = TrackPath()
-    tracker.show_map()
-    # tracker.explore()
+    # tracker.show_map()
+    tracker.explore()
     # tracker.go_to_person()
     # tracker.retrace_path()

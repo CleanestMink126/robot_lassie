@@ -1,7 +1,7 @@
 import numpy as np
 import Queue
 
-def find_valid_points(graph,threshold):
+def find_valid_points(graph,threshold, max_dist=25):
     explored_graph = np.mean(graph, axis = 2)
     path_graph = graph[:,:,0]
     valid_graph = graph[:,:,1]
@@ -18,7 +18,8 @@ def find_valid_points(graph,threshold):
     max_point = np.max(x_all), np.max(y_all)
     # print(min_point,max_point)
 
-    traverse_graph(zip(x_path, y_path), path_distance_graph, min_point, max_point)
+    traverse_graph(zip(x_path, y_path), path_distance_graph, min_point, max_point, stop = valid_graph)
+    path_distance_graph = np.where(path_distance_graph > max_dist, np.zeros_like(path_distance_graph), path_distance_graph)
     traverse_graph(zip(x_obstacle, y_obstacle), obstacle_distance_graph, min_point, max_point)
     print(np.max(path_distance_graph))
     x_close, y_close = np.where(obstacle_distance_graph < threshold)
@@ -27,7 +28,7 @@ def find_valid_points(graph,threshold):
     final_graph[x_close,y_close] = 0
     return final_graph
 
-def traverse_graph(starting_points,container,min_point,max_point):
+def traverse_graph(starting_points,container,min_point,max_point, stop=None):
     my_queue = Queue.Queue()
 
     for point in starting_points:
@@ -38,10 +39,13 @@ def traverse_graph(starting_points,container,min_point,max_point):
         point = my_queue.get()
         neighbors  = get_neighbors(point, min_point, max_point)
         for n in neighbors:
-            if n not in visited_points:
-                my_queue.put(n)
-                container[n] = container[point] + 1
+            if (n not in visited_points):
                 visited_points.add(n)
+                if (stop is not None) and (not stop[n]):
+                    continue
+                container[n] = container[point] + 1
+                my_queue.put(n)
+
 
 def get_neighbors(point, min_point, max_point):
     neighbors = []
