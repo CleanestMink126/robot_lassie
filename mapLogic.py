@@ -55,9 +55,47 @@ class Map(object):
         print(index_flat)
         x_goal = index_flat // self.size
         y_goal = index_flat % self.size
-        x_adjusted = ((x_goal - self.center[0])  * self.res) + self.offset[0]
-        y_adjusted = ((y_goal - self.center[1])  * self.res) + self.offset[1]
-        return x_adjusted, y_adjusted
+        path = self.get_path_to_goal(distance_graph, (x_goal,y_goal)).astype(np.float32)
+        path[:,0] = ((path[:,0] - self.center[0])  * self.res) + self.offset[0]
+        path[:,1] = ((path[:,1] - self.center[1])  * self.res) + self.offset[1]
+        print(path)
+        return path, (x_goal,y_goal),distance_graph
+
+    def get_path_to_goal(self,distance_graph, goal):
+        current_pos = self.positions[-1]
+        x_all, y_all = np.where(distance_graph)
+        min_point = np.min(x_all), np.min(y_all) #find the local box we want the graph to traverse
+        max_point = np.max(x_all)+1, np.max(y_all)+1
+        distance_from_goal = np.full(distance_graph.shape,36, dtype=np.float32)
+        distance_from_goal[goal] = 0
+        graphTraversal.traverse_graph([goal], distance_from_goal, min_point, max_point, distance_graph)
+        path = np.array([current_pos])
+
+        visited = set()
+        while path[-1,0] != goal[0] or path[-1,1] != goal[1]:
+            all_neighbors = graphTraversal.get_adjacent_neighbors(path[-1],min_point,max_point)\
+             + graphTraversal.get_diagonal_neighbors(path[-1],min_point,max_point)
+            n_ind = np.array(all_neighbors)
+            # print(n_ind)
+            print(path)
+
+            index_min = np.argmin(distance_from_goal[n_ind[:,0],n_ind[:,1]])
+            next_point = all_neighbors[index_min]
+            if next_point in visited:
+                print('Goal',goal)
+                print('Goal val',distance_from_goal[goal])
+                print(current_pos)
+                plt.imshow(distance_from_goal)
+                plt.show()
+                exit()
+            visited.add(next_point)
+            path = np.concatenate([path, [next_point]], axis = 0)
+        print(goal)
+        print(path)
+        distance_graph[path[:,0],[path[:,1]]] = 1
+        plt.imshow(distance_graph)
+        plt.show()
+        return path
 
     def find_valid_pixels(self,origin,x_val, y_val):
         x_val = [np.linspace(origin[0], val,8,False) for val in x_val]

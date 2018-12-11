@@ -109,7 +109,7 @@ class BaseLidar(object):
         print('BaseLidar')
 
     def process_range(self, scan_m, odom_m):
-        print('Range Callback')
+        # print('Range Callback')
         if self.get_lidar:
             self.last_ranges = scan_m.ranges
             self.last_odom = BaseLidar.convert_odom(odom_m)

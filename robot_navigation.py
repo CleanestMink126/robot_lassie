@@ -41,7 +41,6 @@ class TrackPath(object):
     the neato, then tracking their position and following their path
     '''
     def __init__(self):
-        self.points = []
         self.past_points = [] #list of tuples representing positions
         self.my_lidar = interface.BaseLidar()
         self.my_speed = interface.SendSpeed()
@@ -63,6 +62,33 @@ class TrackPath(object):
         self.map.update_graph(self.my_lidar.last_odom, self.my_lidar.last_ranges)
         self.my_lidar.reset()
 
+    def vis_map(self):
+        r = rospy.Rate(2)
+        last = rospy.get_rostime().to_sec()
+        x_goal, y_goal = 0, 0
+        dist_map = np.zeros_like(self.map.graph[:,:,0])
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        out = cv2.VideoWriter('output.avi',fourcc, 6.0, (self.map.size,self.map.size))
+        while not rospy.is_shutdown():
+            self.update_map()
+            new_graph = np.copy(self.map.graph)
+            #------------------------
+            now = rospy.get_rostime().to_sec()
+            if now - last > 15:
+                last = now
+                _, goal_loc, dist_map = self.map.set_goal()
+                x_goal, y_goal = int(goal_loc[0]), int(goal_loc[1])
+            new_graph[x_goal-1:x_goal+1,y_goal-1:y_goal+1,:] = [255,255,255]
+            x_val, y_val = np.where(dist_map)
+            new_graph[x_val, y_val,2] += 120 + dist_map[x_val, y_val] * 5
+            out.write(new_graph)
+            cv2.imshow("image",new_graph) #show box
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'): #stop neato and quit if 'q'
+                self.my_speed.send_speed(0,0)
+                break
+            r.sleep()
+
     def add_position(self):
         '''Add a point to the list of points to follow'''
         x, y, yaw = self.my_lidar.get_odom()
@@ -80,17 +106,31 @@ class TrackPath(object):
             self.my_speed.send_speed(.1-abs(c_angle_diff/(10*pi)), np.sign(c_angle_diff) * .5 +  c_angle_diff/2)
         self.my_speed.send_speed(self.speed,0)#go forward
 
-    def find_next_point(self):
+    def time_to_point(self, point):
+        x, y, yaw = self.my_lidar.get_odom()
+        x_t, y_t = point[0], point[1]
+        t_yaw = atan2(y_t - y, x_t - x) #calculate ideal angle
+        c_angle_diff = angle_diff(t_yaw, yaw) #find difference from current angle
+            #effectively turn but don't stop (with some hard coded numbers we found)
+        self.my_speed.send_speed(.1, 1 * np.sign(c_angle_diff))
+        rospy.sleep(abs(c_angle_diff))
+        self.my_speed.send_speed(self.speed,0)#go forward
+
+
+
+    def find_next_point(self, points):
         '''If we reached a point, turn to the next point in the list and
         drive there'''
         self.my_speed.send_speed(0,0)
         x, y, yaw = self.my_lidar.get_odom()
-        while distance(self.points[0],(x,y)) < self.thres:
-            self.points.pop(0)#ignore redundant points that are close to neato
-            if not len(self.points):
-                self.my_speed.send_speed(0,0)
-                return
-        self.navigate_to_point(self, self.points.pop(0))
+        if not points.shape[0]:
+            return False
+        while distance(points[0],(x,y)) < self.thres:
+            points = np.delete(points,0,0)#ignore redundant points that are close to neato
+            if not points.shape[0]:
+                return False
+        self.time_to_point(points[0])
+        return True
 
 
     def check_progress(self, point):
@@ -107,23 +147,22 @@ class TrackPath(object):
     def retrace_path(self):
         '''Mainloop to control robot'''
         r= rospy.Rate(5)
-        self.points = self.past_points[::-1]
-        # print(self.points)
-        self.find_next_point()
+        points = self.past_points[::-1]
+        self.find_next_point(points)
         while not rospy.is_shutdown():#add the persons position for a set amount of time
-            if not len(self.points):
+            if not len(points):
                 self.my_speed.send_speed(0,0)
                 break
             # self.my_marker.update_marker(self.points, frame_id = 'odom')
-            if self.check_progress() and len(self.points):
+            if self.check_progress() and len(points):
                 #loop to navigate to points
-                self.find_next_point()
+                self.find_next_point(points)
             r.sleep()
         print('Back to start')
 
     def go_to_person(self):
         '''This is the main loop for the Neato to follow a person infront of it'''
-        r = rospy.Rate(3)#How fast to run the loop
+        r = rospy.Rate(4)#How fast to run the loop
         while not rospy.is_shutdown():
             self.my_speed.send_speed(self.person_tracker.forward_velocity, self.person_tracker.turn_velocity)#start off by sending the current speed
             self.add_position()
@@ -141,18 +180,23 @@ class TrackPath(object):
             r.sleep()
         print('Finished go to person')
 
-    def explore_static(self,num_maps=10, speed= .5):
+    def explore_static(self,num_maps=30, speed= .5):
         self.my_speed.send_speed(0, speed)#start off by sending the current speed
         for i in range(num_maps):
             self.update_map()
-        self.goal = self.map.set_goal()
-        self.navigate_to_point(self.goal)
+            cv2.imshow("image",self.map.graph) #show box
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'): #stop neato and quit if 'q'
+                self.my_speed.send_speed(0,0)
+                break
+        self.goal_path, self.goal, _ = self.map.set_goal()
 
     def explore(self):
         r = rospy.Rate(3)#How fast to run the loop
-        self.explore_static()
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
         out = cv2.VideoWriter('output.avi',fourcc, 10.0, (self.map.size,self.map.size))
+        self.explore_static()
+        self.find_next_point(self.goal_path)
         while not rospy.is_shutdown():
             # if self.person_tracker.image is not None: #if we have gotten an image
             #     #------------------Person Tracking
@@ -164,10 +208,10 @@ class TrackPath(object):
             # else:
             #     self.person_tracker.get_image = True
             #-------------------
-            self.add_position()
+            # self.add_position()
             self.update_map()
-            x_goal = int((self.goal[0] - self.map.offset[0]) // self.map.res) + self.map.center[0]
-            y_goal = int((self.goal[1] - self.map.offset[1]) // self.map.res) + self.map.center[1]
+            x_goal = int(self.goal[0])
+            y_goal = int(self.goal[1])
             new_graph = np.copy(self.map.graph)
             new_graph[x_goal-1:x_goal+1,y_goal-1:y_goal+1,:] = [255,255,255]
             cv2.imshow("image",new_graph) #show box
@@ -176,15 +220,20 @@ class TrackPath(object):
             if key & 0xFF == ord('q'): #stop neato and quit if 'q'
                 self.my_speed.send_speed(0,0)
                 break
-            if self.check_progress(self.goal):
-                self.explore_static()
+            if self.check_progress(self.goal_path[0]):
+                self.goal_path = np.delete(self.goal_path,0,0)
+                print('Reached', self.goal_path)
+                self.find_next_point(self.goal_path)
+                while not len(self.goal_path):
+                    self.explore_static()
+                    self.find_next_point(self.goal_path)
             r.sleep()
         print('Found person')
 
 if __name__ == "__main__":
     print('Start')
     tracker = TrackPath()
-    # tracker.show_map()
+    # tracker.vis_map()
     tracker.explore()
     # tracker.go_to_person()
     # tracker.retrace_path()
