@@ -3,9 +3,6 @@ layout: default
 ---
 [Main Page](./index.html).
 ## Story 2: Graph Iteration
-After building out and testing the basic architecture I moved onto building out the first
-(and most essential part) of the lassie process: The Exploration.
-
 In order to effectively explore your environment you must first understand it. So, I started with
 mapping the environment in a 2D graph. I debated using a pre-made library to do this, but
 since one of my learning goals is learning more about robotics, I instead decided to do

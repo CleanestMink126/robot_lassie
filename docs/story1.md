@@ -3,7 +3,7 @@ layout: default
 ---
 [Main Page](./index.html).
 ## Story 1: First Pass and Overall Architecture
-Before jumping into the full project and attempting to make a full lassie-bot, I wanted to build out the basic behavior and overall architecture. My first pass involved getting the Neato to do a cursory sweep of for a person, approach that person, and navigate back to its starting position. This task can be logically broken down into 3 parts: Explore, Approach and Return.
+Before jumping into the full project and attempting to make a full lassie-bot, I wanted to build out the basic behavior and overall architecture. My first pass involved getting the Neato to do a cursory sweep of for a person, approach that person, and navigate back to its starting position.
 
 The code for each of these three behaviors is executed in the `robot_navigation.py`, support code for ROS is implemented in `interface.py`, and person detection code is implemented in `person_tracking.py`.
 
@@ -22,4 +22,4 @@ With orientation figured out, we may also result to image logic to determine whe
 
 ### Return
 
-Finally the lassie must return to where she started. In order to make the program robust for future complex environments, the Neato won't beeline for her starting coordinates. Instead, in all the previous steps the robot saved its position in order to retrace its steps on the way back.Again a simple controller works in this scenario to check the Neato's progress towards each point along its journey and direct it to the next one when it gets there. 
+Finally the lassie must return to where she started. In order to make the program robust for future complex environments, the Neato won't beeline for her starting coordinates. Instead, in all the previous steps the robot saved its position in order to retrace its steps on the way back.Again a simple controller works in this scenario to check the Neato's progress towards each point along its journey and direct it to the next one when it gets there.
