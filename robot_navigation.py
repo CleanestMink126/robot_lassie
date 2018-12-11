@@ -37,8 +37,8 @@ rad2degrees = 180/pi
 degrees2rad = pi/180
 
 class TrackPath(object):
-    '''This class will handle finding a person who moves directly in front of
-    the neato, then tracking their position and following their path
+    '''This class will handle all the navigation and high level commands for the
+    Neato
     '''
     def __init__(self):
         self.past_points = [] #list of tuples representing positions
@@ -47,22 +47,26 @@ class TrackPath(object):
         self.my_marker = interface.SendMarker()
         self.person_tracker = person_tracking.TrackPerson()
         x = None
-        while x is None:
+        while x is None:#Get an initial read for the poition of the neato
             x, y, yaw = self.my_lidar.get_odom()
-        print('Setup')
+        print('Setup')#use that position to define a new map
         self.map = mapLogic.Map((x,y,yaw))
         print('Made map')
         self.thres = .15 #how close can a point be before the neato ignores it
         self.speed = .3 #how fast to move
 
     def update_map(self):
+        '''Indicate to the LIDAR scanner to hold onto the next value and odom
+        at that time'''
         self.my_lidar.get_lidar = True
         while self.my_lidar.get_lidar:
             rospy.sleep(.05)
         self.map.update_graph(self.my_lidar.last_odom, self.my_lidar.last_ranges)
-        self.my_lidar.reset()
+        self.my_lidar.reset()#Reset LIDAR to not look for values
 
     def vis_map(self):
+        ''''This is just a quick visualization to make sure the mapping is
+        working when manually driving the neato around'''
         r = rospy.Rate(2)
         last = rospy.get_rostime().to_sec()
         x_goal, y_goal = 0, 0
@@ -95,6 +99,7 @@ class TrackPath(object):
         self.past_points.append((x,y))
 
     def navigate_to_point(self,point):
+        '''Use some simple proportional controls to get to a point'''
         angle_threshold = pi / 38 #how close we need to be in our heading to next point
         c_angle_diff = angle_threshold + 1 #just so the while loop will run
         while abs(c_angle_diff) > angle_threshold:
@@ -107,6 +112,7 @@ class TrackPath(object):
         self.my_speed.send_speed(self.speed,0)#go forward
 
     def time_to_point(self, point):
+        '''Use more exact measurements to get to a point'''
         x, y, yaw = self.my_lidar.get_odom()
         x_t, y_t = point[0], point[1]
         t_yaw = atan2(y_t - y, x_t - x) #calculate ideal angle
