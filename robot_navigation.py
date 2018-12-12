@@ -144,12 +144,32 @@ class TrackPath(object):
             return True
         return False
 
+    def return_to_start(self):
+        self.spin()
+        self.goal_path, self.goal, self.weighted_map = self.map.set_goal(self.map.center)
+        self.goal_path = self.goal_path[::3]
+        self.find_next_point(self.goal_path)
+        while not rospy.is_shutdown():
+            self.update_map()
+            if self.check_progress(self.goal_path[0]):
+                self.goal_path = np.delete(self.goal_path,0,0)
+                print('Reached', self.goal_path)
+                self.find_next_point(self.goal_path)
+                if not len(self.goal_path):
+                    break
+        self.spin()
+
+    def spin(self):
+        self.my_speed.send_speed(0, 3.14/2.0)
+        rospy.sleep(4)
+        self.my_speed.send_speed(0, 0)
+
     def go_to_person(self):
         '''This is the main loop for the Neato to follow a person infront of it'''
         r = rospy.Rate(4)#How fast to run the loop
         while not rospy.is_shutdown():
             self.my_speed.send_speed(self.person_tracker.forward_velocity, self.person_tracker.turn_velocity)#start off by sending the current speed
-            self.add_position()
+            self.update_map()
             if self.person_tracker.image is not None: #if we have gotten an image
                 box = self.person_tracker.get_box()
                 if box is None:#if we did not find a suitable box, try again later
@@ -167,6 +187,15 @@ class TrackPath(object):
     def explore_static(self,num_maps=30, speed= .5):
         self.my_speed.send_speed(0, speed)#start off by sending the current speed
         for i in range(num_maps):
+            if self.person_tracker.image is not None: #if we have gotten an image
+                #------------------Person Tracking
+                box = self.person_tracker.get_box()
+                self.person_tracker.reset() #make sure to wait for a new image
+                self.person_tracker.get_image = True
+                if box is not None:#if we did not find a suitable box, try again later
+                    return True
+            else:
+                self.person_tracker.get_image = True
             self.update_map()
             cv2.imshow("image",self.map.graph) #show box
             key = cv2.waitKey(1)
@@ -175,6 +204,7 @@ class TrackPath(object):
                 break
         self.goal_path, self.goal, self.weighted_map = self.map.set_goal()
         self.goal_path = self.goal_path[::3]
+        return False
 
     def explore(self):
         r = rospy.Rate(3)#How fast to run the loop
@@ -182,18 +212,18 @@ class TrackPath(object):
         out = cv2.VideoWriter('output.avi',fourcc, 10.0, (self.map.size,self.map.size))
         self.explore_static()
         self.find_next_point(self.goal_path)
+        # num_goals = 0
         while not rospy.is_shutdown():
-            # if self.person_tracker.image is not None: #if we have gotten an image
-            #     #------------------Person Tracking
-            #     box = self.person_tracker.get_box()
-            #     self.person_tracker.reset() #make sure to wait for a new image
-            #     self.person_tracker.get_image = True
-            #     if box is not None:#if we did not find a suitable box, try again later
-            #         break
-            # else:
-            #     self.person_tracker.get_image = True
+            if self.person_tracker.image is not None: #if we have gotten an image
+                #------------------Person Tracking
+                box = self.person_tracker.get_box()
+                self.person_tracker.reset() #make sure to wait for a new image
+                self.person_tracker.get_image = True
+                if box is not None:#if we did not find a suitable box, try again later
+                    break
+            else:
+                self.person_tracker.get_image = True
             #-------------------
-            # self.add_position()
             self.update_map()
             if SHOW_MAP:
                 x_goal = int(self.goal[0])
@@ -213,7 +243,11 @@ class TrackPath(object):
                 print('Reached', self.goal_path)
                 self.find_next_point(self.goal_path)
                 while not len(self.goal_path):
-                    self.explore_static()
+                    # num_goals += 1
+                    # if num_goals >= 3:
+                    #     return
+                    if self.explore_static():
+                        return
                     self.find_next_point(self.goal_path)
             r.sleep()
         print('Found person')
@@ -223,5 +257,5 @@ if __name__ == "__main__":
     tracker = TrackPath()
     # tracker.vis_map()
     tracker.explore()
-    # tracker.go_to_person()
-    # tracker.retrace_path()
+    tracker.go_to_person()
+    tracker.return_to_start()

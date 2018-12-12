@@ -71,15 +71,19 @@ class Map(object):
         self.graph[red_points[:,0],red_points[:,1],1] = green_adjust_points
         self.graph[self.positions[:,0],self.positions[:,1],:] = [204,0,0]
 
-    def set_goal(self):
+    def set_goal(self, goal=None):
         '''Given a graph, set a likely destination to get more information on
         the environment'''
         #Get the ditance of all valid points
         distance_graph = graphTraversal.find_valid_points(self.graph)
         #Select the furthest away valid point
-        index_flat = np.argmax(distance_graph)
-        x_goal = index_flat // self.size
-        y_goal = index_flat % self.size
+        if goal is None:
+            index_flat = np.argmax(distance_graph)
+            x_goal = index_flat // self.size
+            y_goal = index_flat % self.size
+        else:
+            x_goal, y_goal = goal[0], goal[1]
+
         #Use the existing graph information to create a path to the goal that
         #will not collide with any obstacles
         path = self.get_path_to_goal(distance_graph, (x_goal,y_goal)).astype(np.float32)

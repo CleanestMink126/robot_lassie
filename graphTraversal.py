@@ -1,7 +1,7 @@
 import numpy as np
 import Queue
 
-def find_valid_points(graph,threshold = 2, max_dist=20):
+def find_valid_points(graph,threshold = 3, max_dist=20):
     '''This is the main graph traversal function. It will find all explored points that
     are a certain distance from an obstacle (so the neato won't get caught)
     and will tell their distance from the closest path the neato has traversed
