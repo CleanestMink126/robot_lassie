@@ -1,7 +1,7 @@
 import numpy as np
 import Queue
 
-def find_valid_points(graph,threshold = 5, max_dist=25):
+def find_valid_points(graph,threshold = 2, max_dist=20):
     '''This is the main graph traversal function. It will find all explored points that
     are a certain distance from an obstacle (so the neato won't get caught)
     and will tell their distance from the closest path the neato has traversed
@@ -13,15 +13,16 @@ def find_valid_points(graph,threshold = 5, max_dist=25):
     #Segment the input graph
     explored_graph = np.mean(graph, axis = 2)#all seen points
     path_graph = graph[:,:,0] #get the blue points aka the path the robot took
-    valid_graph = np.mean(graph[:,:,0:2], axis = 2) #get the green points aka where the robot has validated as free
-    obstacle_graph = graph[:,:,2] # get the red points aka where is a verified obstacle
+    x_valid, y_valid = np.where(graph[:,:,1]>graph[:,:,2] + 10) #get the green points aka where the robot has validated as free
+    valid_graph = np.zeros_like(path_graph)
+    valid_graph[x_valid,y_valid] = 1
     path_distance_graph = np.zeros_like(path_graph)
     obstacle_distance_graph = np.zeros_like(path_graph, dtype=np.float32)
     #------------------------------
     #Get the relevent points as indices
     x_all, y_all = np.where(explored_graph)#get list of all indices
-    x_path, y_path = np.where(path_graph) #get list of indices of robot path
-    x_obstacle, y_obstacle = np.where(obstacle_graph) #get list of indices of obstacles
+    x_obstacle, y_obstacle = np.where(graph[:,:,2]>graph[:,:,1] + 10) # get the red points aka where is a verified obstacle
+    x_path, y_path = np.where(path_graph)
     min_point = np.min(x_all), np.min(y_all) #find the local box we want the graph to traverse
     max_point = np.max(x_all), np.max(y_all)
     #------------------------------

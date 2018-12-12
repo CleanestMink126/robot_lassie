@@ -43,17 +43,39 @@ class Map(object):
             print("OUT OF DIMENSIONS (Somehow?)")
             return
         #----------------------Reset points on graph
-        red_points = red_points.astype(np.int32)
+        increment = 10
+        #----------------------Increment green points
         green_points = green_points.astype(np.int32)
-        self.graph[green_points[:,0],green_points[:,1],:] = [0,204,0]
-        self.graph[red_points[:,0],red_points[:,1],:] = [0,0,204]
+        current_green_points = self.graph[green_points[:,0],green_points[:,1],1]
+        red_adjust_points = self.graph[green_points[:,0],green_points[:,1],2]
+        potential_green_points = np.full(current_green_points.shape, increment,dtype=np.uint8)
+        c = 255 - potential_green_points
+        np.putmask(current_green_points, c < current_green_points, c)
+        np.putmask(red_adjust_points, potential_green_points > red_adjust_points, potential_green_points)
+        current_green_points += potential_green_points
+        red_adjust_points -= potential_green_points
+        #----------------------now increment red
+        red_points = red_points.astype(np.int32)
+        current_red_points = self.graph[red_points[:,0],red_points[:,1],2]
+        green_adjust_points = self.graph[red_points[:,0],red_points[:,1],1]
+        potential_red_points = np.full(current_red_points.shape, increment, dtype=np.uint8)
+        c = 255 - potential_red_points
+        np.putmask(current_red_points, c < current_red_points, c)
+        np.putmask(green_adjust_points, potential_red_points > green_adjust_points, potential_red_points)
+        current_red_points += potential_red_points
+        green_adjust_points -= potential_red_points
+        #-----------------------Set values
+        self.graph[green_points[:,0],green_points[:,1],1] = current_green_points
+        self.graph[green_points[:,0],green_points[:,1],2] = red_adjust_points
+        self.graph[red_points[:,0],red_points[:,1],2] = current_red_points
+        self.graph[red_points[:,0],red_points[:,1],1] = green_adjust_points
         self.graph[self.positions[:,0],self.positions[:,1],:] = [204,0,0]
 
     def set_goal(self):
         '''Given a graph, set a likely destination to get more information on
         the environment'''
         #Get the ditance of all valid points
-        distance_graph = graphTraversal.find_valid_points(self.graph, 5)
+        distance_graph = graphTraversal.find_valid_points(self.graph)
         #Select the furthest away valid point
         index_flat = np.argmax(distance_graph)
         x_goal = index_flat // self.size

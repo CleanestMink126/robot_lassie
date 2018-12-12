@@ -35,13 +35,13 @@ def angle_diff(a, b):
 
 rad2degrees = 180/pi
 degrees2rad = pi/180
+SHOW_MAP = True
 
 class TrackPath(object):
     '''This class will handle all the navigation and high level commands for the
     Neato
     '''
     def __init__(self):
-        self.past_points = [] #list of tuples representing positions
         self.my_lidar = interface.BaseLidar()
         self.my_speed = interface.SendSpeed()
         self.my_marker = interface.SendMarker()
@@ -53,7 +53,7 @@ class TrackPath(object):
         self.map = mapLogic.Map((x,y,yaw))
         print('Made map')
         self.thres = .15 #how close can a point be before the neato ignores it
-        self.speed = .3 #how fast to move
+        self.speed = .2 #how fast to move
 
     def update_map(self):
         '''Indicate to the LIDAR scanner to hold onto the next value and odom
@@ -84,7 +84,7 @@ class TrackPath(object):
                 x_goal, y_goal = int(goal_loc[0]), int(goal_loc[1])
             new_graph[x_goal-1:x_goal+1,y_goal-1:y_goal+1,:] = [255,255,255]
             x_val, y_val = np.where(dist_map)
-            new_graph[x_val, y_val,2] += 120 + dist_map[x_val, y_val] * 5
+            new_graph[x_val, y_val,0] += (dist_map[x_val, y_val]/20.0 * new_graph[x_val, y_val,1]).astype(np.uint8)
             out.write(new_graph)
             cv2.imshow("image",new_graph) #show box
             key = cv2.waitKey(1)
@@ -92,11 +92,6 @@ class TrackPath(object):
                 self.my_speed.send_speed(0,0)
                 break
             r.sleep()
-
-    def add_position(self):
-        '''Add a point to the list of points to follow'''
-        x, y, yaw = self.my_lidar.get_odom()
-        self.past_points.append((x,y))
 
     def navigate_to_point(self,point):
         '''Use some simple proportional controls to get to a point'''
@@ -118,10 +113,9 @@ class TrackPath(object):
         t_yaw = atan2(y_t - y, x_t - x) #calculate ideal angle
         c_angle_diff = angle_diff(t_yaw, yaw) #find difference from current angle
             #effectively turn but don't stop (with some hard coded numbers we found)
-        self.my_speed.send_speed(.1, 1 * np.sign(c_angle_diff))
+        self.my_speed.send_speed(.05, 1 * np.sign(c_angle_diff))
         rospy.sleep(abs(c_angle_diff))
         self.my_speed.send_speed(self.speed,0)#go forward
-
 
 
     def find_next_point(self, points):
@@ -149,22 +143,6 @@ class TrackPath(object):
             #We passed the point
             return True
         return False
-
-    def retrace_path(self):
-        '''Mainloop to control robot'''
-        r= rospy.Rate(5)
-        points = self.past_points[::-1]
-        self.find_next_point(points)
-        while not rospy.is_shutdown():#add the persons position for a set amount of time
-            if not len(points):
-                self.my_speed.send_speed(0,0)
-                break
-            # self.my_marker.update_marker(self.points, frame_id = 'odom')
-            if self.check_progress() and len(points):
-                #loop to navigate to points
-                self.find_next_point(points)
-            r.sleep()
-        print('Back to start')
 
     def go_to_person(self):
         '''This is the main loop for the Neato to follow a person infront of it'''
@@ -195,7 +173,8 @@ class TrackPath(object):
             if key & 0xFF == ord('q'): #stop neato and quit if 'q'
                 self.my_speed.send_speed(0,0)
                 break
-        self.goal_path, self.goal, _ = self.map.set_goal()
+        self.goal_path, self.goal, self.weighted_map = self.map.set_goal()
+        self.goal_path = self.goal_path[::3]
 
     def explore(self):
         r = rospy.Rate(3)#How fast to run the loop
@@ -216,16 +195,19 @@ class TrackPath(object):
             #-------------------
             # self.add_position()
             self.update_map()
-            x_goal = int(self.goal[0])
-            y_goal = int(self.goal[1])
-            new_graph = np.copy(self.map.graph)
-            new_graph[x_goal-1:x_goal+1,y_goal-1:y_goal+1,:] = [255,255,255]
-            cv2.imshow("image",new_graph) #show box
-            out.write(new_graph)
-            key = cv2.waitKey(1)
-            if key & 0xFF == ord('q'): #stop neato and quit if 'q'
-                self.my_speed.send_speed(0,0)
-                break
+            if SHOW_MAP:
+                x_goal = int(self.goal[0])
+                y_goal = int(self.goal[1])
+                new_graph = np.copy(self.map.graph)
+                new_graph[x_goal-1:x_goal+1,y_goal-1:y_goal+1,:] = [255,255,255]
+                x_val, y_val = np.where(self.weighted_map)
+                new_graph[x_val, y_val,0] += (self.weighted_map[x_val, y_val]/20.0 * new_graph[x_val, y_val,1]).astype(np.uint8)
+                cv2.imshow("image",new_graph) #show box
+                out.write(new_graph)
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('q'): #stop neato and quit if 'q'
+                    self.my_speed.send_speed(0,0)
+                    break
             if self.check_progress(self.goal_path[0]):
                 self.goal_path = np.delete(self.goal_path,0,0)
                 print('Reached', self.goal_path)
