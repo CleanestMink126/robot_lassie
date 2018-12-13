@@ -63,9 +63,11 @@ Since the end goal is to find a person, the entire time the the Neato is explori
 
 Finally we must return from the current position to the origin of the Neato. Conveniently, this can be easily accomplished by the beautiful map of the environment we have made during this whole process. All we have to do is set a goal of the origin of our robot in the map, find the distance of all relevant points form that goal using a BFS like described before, and then greedily follow the next closer point just like going to any other goal.
 
-## Final Video
-(Click to go to the Youtube video)
+## Final Videos
+(Click to go to the Youtube videos)
 <center>
 <a href="https://www.youtube.com/watch?v=c6UQ8cKpxug&feature=youtu.be"  target="_blank"><img src="./assets/images/neato_pic.png"
-alt="IMAGE ALT TEXT HERE" width="400" border="10" /></a>
+alt="IMAGE ALT TEXT HERE" width="300" height="250" border="10" /></a>
+<a href="https://youtu.be/w-m6t6UrFh0"  target="_blank"><img src="./assets/images/vic2.png"
+alt="IMAGE ALT TEXT HERE" width="300" height="250" border="10" /></a>
 </center>

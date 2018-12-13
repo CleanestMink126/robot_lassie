@@ -36,6 +36,8 @@ def angle_diff(a, b):
 rad2degrees = 180/pi
 degrees2rad = pi/180
 SHOW_MAP = True
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter('output.avi',fourcc, 10.0, (400,400))
 
 class TrackPath(object):
     '''This class will handle all the navigation and high level commands for the
@@ -149,14 +151,17 @@ class TrackPath(object):
         self.goal_path, self.goal, self.weighted_map = self.map.set_goal(self.map.center)
         self.goal_path = self.goal_path[::3]
         self.find_next_point(self.goal_path)
+        r = rospy.Rate(4)#How fast to run the loop
         while not rospy.is_shutdown():
             self.update_map()
+            out.write(self.map.graph)
             if self.check_progress(self.goal_path[0]):
                 self.goal_path = np.delete(self.goal_path,0,0)
                 print('Reached', self.goal_path)
                 self.find_next_point(self.goal_path)
                 if not len(self.goal_path):
                     break
+            r.sleep()
         self.spin()
 
     def spin(self):
@@ -170,6 +175,7 @@ class TrackPath(object):
         while not rospy.is_shutdown():
             self.my_speed.send_speed(self.person_tracker.forward_velocity, self.person_tracker.turn_velocity)#start off by sending the current speed
             self.update_map()
+            out.write(self.map.graph)
             if self.person_tracker.image is not None: #if we have gotten an image
                 box = self.person_tracker.get_box()
                 if box is None:#if we did not find a suitable box, try again later
@@ -186,6 +192,7 @@ class TrackPath(object):
 
     def explore_static(self,num_maps=30, speed= .5):
         self.my_speed.send_speed(0, speed)#start off by sending the current speed
+        r = rospy.Rate(4)
         for i in range(num_maps):
             if self.person_tracker.image is not None: #if we have gotten an image
                 #------------------Person Tracking
@@ -197,19 +204,20 @@ class TrackPath(object):
             else:
                 self.person_tracker.get_image = True
             self.update_map()
+            out.write(self.map.graph)
             cv2.imshow("image",self.map.graph) #show box
             key = cv2.waitKey(1)
             if key & 0xFF == ord('q'): #stop neato and quit if 'q'
                 self.my_speed.send_speed(0,0)
                 break
+            r.sleep()
         self.goal_path, self.goal, self.weighted_map = self.map.set_goal()
         self.goal_path = self.goal_path[::3]
         return False
 
     def explore(self):
-        r = rospy.Rate(3)#How fast to run the loop
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter('output.avi',fourcc, 10.0, (self.map.size,self.map.size))
+        r = rospy.Rate(4)#How fast to run the loop
+
         self.explore_static()
         self.find_next_point(self.goal_path)
         # num_goals = 0
